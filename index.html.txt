@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowKeys — Smart Productivity Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8a8a9a;
+            --text-muted: #5a5a6a;
+            --accent-focus: #3b82f6;
+            --accent-writing: #10b981;
+            --accent-meeting: #8b5cf6;
+            --accent-study: #f59e0b;
+            --accent-break: #ec4899;
+            --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.15);
+            --radius-sm: 12px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-medium: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f0f0f5;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(0, 0, 0, 0.06);
+            --glass-border-hover: rgba(0, 0, 0, 0.12);
+            --text-primary: #1a1a2e;
+            --text-secondary: #6b6b7b;
+            --text-muted: #9a9aaa;
+            --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.08);
+            --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            transition: background var(--transition-slow), color var(--transition-slow);
+        }
+
+        /* ===== BACKGROUND ORBS ===== */
+        .bg-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            pointer-events: none;
+            transition: all var(--transition-slow);
+            z-index: 0;
+        }
+        .bg-orb-1 { width: 500px; height: 500px; top: -10%; right: -5%; background: radial-gradient(circle, var(--accent-focus), transparent 70%); }
+        .bg-orb-2 { width: 400px; height: 400px; bottom: -10%; left: -5%; background: radial-gradient(circle, var(--accent-meeting), transparent 70%); }
+        .bg-orb-3 { width: 300px; height: 300px; top: 40%; left: 30%; background: radial-gradient(circle, var(--accent-writing), transparent 70%); opacity: 0.2; }
+
+        /* ===== TOP BAR ===== */
+        .top-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            z-index: 100;
+            transition: all var(--transition-medium);
+        }
+        .mode-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: -0.01em;
+        }
+        .mode-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all var(--transition-medium);
+            box-shadow: 0 0 0 0 transparent;
+        }
+        .mode-dot.active { box-shadow: 0 0 12px currentColor; }
+        .top-actions { display: flex; align-items: center; gap: 12px; }
+        .theme-toggle {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            font-size: 16px;
+        }
+        .theme-toggle:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--glass-border-hover); }
+
+        /* ===== TOOLTIP ===== */
+        .tooltip {
+            position: fixed;
+            top: 68px; left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--glass-border);
+            padding: 10px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            color: var(--text-secondary);
+            opacity: 0;
+            pointer-events: none;
+            transition: all var(--transition-medium);
+            z-index: 99;
+            box-shadow: var(--shadow-soft);
+        }
+        .tooltip.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: -5px; left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+            width: 10px; height: 10px;
+            background: var(--bg-tertiary);
+            border-left: 1px solid var(--glass-border);
+            border-top: 1px solid var(--glass-border);
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            padding-top: 56px;
+            position: relative;
+            z-index: 1;
+        }
+        .left-panel {
+            width: 320px; min-width: 320px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            border-right: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: all var(--transition-medium);
+        }
+        .panel-header {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .device-frame {
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-soft);
+            transition: all var(--transition-medium);
+        }
+        .keys-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .flow-key {
+            aspect-ratio: 1;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all var(--transition-fast);
+            position: relative;
+            overflow: hidden;
+        }
+        .flow-key::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity var(--transition-medium);
+        }
+        .flow-key:hover {
+            transform: translateY(-2px);
+            border-color: var(--glass-border-hover);
+            color: var(--text-primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .flow-key:active { transform: translateY(0) scale(0.96); }
+        .flow-key.active {
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 0 20px var(--key-glow, rgba(59, 130, 246, 0.4));
+        }
+        .flow-key.active::before { opacity: 1; }
+        .flow-key .key-icon { font-size: 20px; transition: transform var(--transition-fast); }
+        .flow-key:hover .key-icon { transform: scale(1.1); }
+        .flow-key .key-label { font-size: 10px; letter-spacing: 0.02em; }
+
+        .key-focus::before { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .key-focus.active { --key-glow: rgba(59, 130, 246, 0.5); }
+        .key-writing::before { background: linear-gradient(135deg, #10b981, #059669); }
+        .key-writing.active { --key-glow: rgba(16, 185, 129, 0.5); }
+        .key-meeting::before { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .key-meeting.active { --key-glow: rgba(139, 92, 246, 0.5); }
+        .key-study::before { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .key-study.active { --key-glow: rgba(245, 158, 11, 0.5); }
+        .key-break::before { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .key-break.active { --key-glow: rgba(236, 72, 153, 0.5); }
+        .key-reset::before { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        .key-reset.active { --key-glow: rgba(107, 114, 128, 0.5); }
+
+        /* ===== RIGHT PANEL ===== */
+        .right-panel {
+            flex: 1;
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .workspace-content {
+            flex: 1;
+            position: relative;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            overflow: hidden;
+            transition: all var(--transition-slow);
+        }
+        .mode-view {
+            position: absolute;
+            inset: 0;
+            padding: 40px;
+            opacity: 0;
+            transform: scale(0.96) translateY(10px);
+            filter: blur(4px);
+            pointer-events: none;
+            transition: all var(--transition-slow);
+            display: flex;
+            flex-direction: column;
+        }
+        .mode-view.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            filter: blur(0);
+            pointer-events: all;
+        }
+
+        /* ===== FOCUS MODE ===== */
+        .focus-view { align-items: center; justify-content: center; text-align: center; }
+        .focus-timer {
+            font-size: 96px;
+            font-weight: 200;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 16px;
+            transition: color var(--transition-medium);
+        }
+        .focus-subtitle { font-size: 18px; color: var(--text-secondary); font-weight: 400; }
+        .focus-status {
+            margin-top: 32px;
+            padding: 8px 20px;
+            border-radius: 100px;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-focus);
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .focus-status::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent-focus);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* ===== WRITING MODE ===== */
+        .writing-view { padding: 0; }
+        .writing-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .writing-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .writing-stats span { display: flex; align-items: center; gap: 6px; }
+        .writing-area {
+            flex: 1;
+            padding: 24px;
+            font-size: 18px;
+            line-height: 1.8;
+            color: var(--text-primary);
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            width: 100%;
+        }
+        .writing-area::placeholder { color: var(--text-muted); }
+        .cursor-blink {
+            display: inline-block;
+            width: 2px; height: 1.2em;
+            background: var(--accent-writing);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* ===== MEETING MODE ===== */
+        .meeting-view { padding: 0; }
+        .meeting-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .meeting-title { font-size: 16px; font-weight: 600; }
+        .meeting-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--accent-meeting);
+        }
+        .meeting-status .live-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-meeting);
+            animation: pulse 1.5s infinite;
+        }
+        .meeting-body {
+            flex: 1;
+            display: flex;
+            padding: 24px;
+            gap: 24px;
+        }
+        .meeting-calendar {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            border: 1px solid var(--glass-border);
+        }
+        .calendar-block {
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            background: rgba(139, 92, 246, 0.08);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            margin-bottom: 12px;
+        }
+        .calendar-block-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .calendar-block-time { font-size: 12px; color: var(--text-secondary); }
+        .meeting-notes {
+            width: 300px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+        }
+        .notes-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .notes-area {
+            flex: 1;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+        }
+
+        /* ===== STUDY MODE ===== */
+        .study-view {
+            flex-direction: row;
+            padding: 24px;
+            gap: 24px;
+        }
+        .study-notes, .study-checklist {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .study-checklist { width: 320px; flex: none; }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .study-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .checklist-item:hover { color: var(--text-primary); }
+        .checklist-item:last-child { border-bottom: none; }
+        .check-box {
+            width: 18px; height: 18px;
+            border-radius: 5px;
+            border: 2px solid var(--glass-border-hover);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        .checklist-item.checked .check-box {
+            background: var(--accent-study);
+            border-color: var(--accent-study);
+        }
+        .checklist-item.checked {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 100px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-study), #fbbf24);
+            border-radius: 100px;
+            transition: width var(--transition-medium);
+        }
+        .progress-text { font-size: 12px; color: var(--text-muted); margin-top: 8px; text-align: right; }
+
+        /* ===== BREAK MODE ===== */
+        .break-view { align-items: center; justify-content: center; text-align: center; }
+        .break-emoji {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .break-message {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+        .break-sub {
+            font-size: 15px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+        .spotify-widget {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--shadow-soft);
+        }
+        .spotify-cover {
+            width: 48px; height: 48px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .spotify-info { flex: 1; text-align: left; }
+        .spotify-track { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .spotify-artist { font-size: 12px; color: var(--text-secondary); }
+        .spotify-controls {
+            display: flex;
+            gap: 12px;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+        .spotify-controls span { cursor: pointer; transition: color var(--transition-fast); }
+        .spotify-controls span:hover { color: var(--text-primary); }
+
+        /* ===== LOADING OVERLAY ===== */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition-medium);
+        }
+        .loading-overlay.show { opacity: 1; pointer-events: all; }
+        .loading-spinner {
+            width: 32px; height: 32px;
+            border: 2px solid var(--glass-border);
+            border-top-color: var(--text-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            animation: fadePulse 1.5s ease-in-out infinite;
+        }
+        @keyframes fadePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+        /* ===== CTA OVERLAY ===== */
+        .cta-overlay {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            padding: 24px;
+            background: linear-gradient(to top, var(--bg-primary), transparent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            z-index: 90;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all var(--transition-slow);
+            pointer-events: none;
+        }
+        .cta-overlay.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+        .cta-text { font-size: 15px; color: var(--text-secondary); }
+        .cta-button {
+            padding: 10px 24px;
+            border-radius: 10px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        .cta-button:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+
+        /* ===== IDLE STATE ===== */
+        .idle-view { align-items: center; justify-content: center; text-align: center; }
+        .idle-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+        .idle-text { font-size: 20px; color: var(--text-secondary); font-weight: 300; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .app-container { flex-direction: column; }
+            .left-panel { width: 100%; min-width: auto; padding: 20px; border-right: none; border-bottom: 1px solid var(--glass-border); }
+            .right-panel { padding: 20px; }
+            .study-view { flex-direction: column; }
+            .study-checklist { width: 100%; }
+            .meeting-body { flex-direction: column; }
+            .meeting-notes { width: 100%; }
+            .focus-timer { font-size: 64px; }
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <!-- Background Orbs -->
+    <div class="bg-orb bg-orb-1" id="orb1"></div>
+    <div class="bg-orb bg-orb-2" id="orb2"></div>
+    <div class="bg-orb bg-orb-3" id="orb3"></div>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="mode-indicator">
+            <div class="mode-dot" id="modeDot"></div>
+            <span id="modeText">FlowKeys Ready</span>
+        </div>
+        <div class="top-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip">Press a key to switch your state</div>
+
+    <!-- Main App -->
+    <div class="app-container">
+        <!-- LEFT PANEL: FlowKeys Device -->
+        <div class="left-panel">
+            <div class="panel-header">FlowKeys Controller</div>
+            <div class="device-frame">
+                <div class="keys-grid">
+                    <button class="flow-key key-focus" data-mode="focus">
+                        <span class="key-icon">🎯</span>
+                        <span class="key-label">Focus</span>
+                    </button>
+                    <button class="flow-key key-writing" data-mode="writing">
+                        <span class="key-icon">✍️</span>
+                        <span class="key-label">Writing</span>
+                    </button>
+                    <button class="flow-key key-meeting" data-mode="meeting">
+                        <span class="key-icon">🎥</span>
+                        <span class="key-label">Meeting</span>
+                    </button>
+                    <button class="flow-key key-study" data-mode="study">
+                        <span class="key-icon">📚</span>
+                        <span class="key-label">Study</span>
+                    </button>
+                    <button class="flow-key key-break" data-mode="break">
+                        <span class="key-icon">☕</span>
+                        <span class="key-label">Break</span>
+                    </button>
+                    <button class="flow-key key-reset" data-mode="idle">
+                        <span class="key-icon">↩️</span>
+                        <span class="key-label">Reset</span>
+                    </button>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 8px;">
+                Click any key to transform your workspace
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Dynamic Workspace -->
+        <div class="right-panel">
+            <div class="workspace-content" id="workspace">
+                <!-- Loading Overlay -->
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text" id="loadingText">Preparing workspace...</div>
+                </div>
+
+                <!-- IDLE VIEW -->
+                <div class="mode-view idle-view active" id="view-idle">
+                    <div class="idle-icon">⌨️</div>
+                    <div class="idle-text">Select a mode to begin</div>
+                </div>
+
+                <!-- FOCUS MODE -->
+                <div class="mode-view focus-view" id="view-focus">
+                    <div class="focus-timer" id="focusTimer">25:00</div>
+                    <div class="focus-subtitle">Deep work session active</div>
+                    <div class="focus-status">
+                        <span>Focus Mode</span>
+                    </div>
+                </div>
+
+                <!-- WRITING MODE -->
+                <div class="mode-view writing-view" id="view-writing">
+                    <div class="writing-toolbar">
+                        <div style="font-size: 14px; font-weight: 600;">Untitled Document</div>
+                        <div class="writing-stats">
+                            <span id="wordCount">0 words</span>
+                            <span id="charCount">0 chars</span>
+                        </div>
+                    </div>
+                    <textarea class="writing-area" id="writingArea" placeholder="Start writing... The cursor is waiting for your thoughts."></textarea>
+                </div>
+
+                <!-- MEETING MODE -->
+                <div class="mode-view meeting-view" id="view-meeting">
+                    <div class="meeting-header">
+                        <div class="meeting-title">Team Standup</div>
+                        <div class="meeting-status">
+                            <div class="live-dot"></div>
+                            <span>Joining meeting...</span>
+                        </div>
+                    </div>
+                    <div class="meeting-body">
+                        <div class="meeting-calendar">
+                            <div class="section-title">Today's Schedule</div>
+                            <div class="calendar-block">
+                                <div class="calendar-block-title">Team Standup</div>
+                                <div class="calendar-block-time">10:00 AM — 10:30 AM</div>
+                            </div>
+                            <div class="calendar-block">
+                                <div class="calendar-block-title">Product Review</div>
+                                <div class="calendar-block-time">2:00 PM — 3:00 PM</div>
+                            </div>
+                            <div class="calendar-block">
+                                <div class="calendar-block-title">1:1 with Design</div>
+                                <div class="calendar-block-time">4:30 PM — 5:00 PM</div>
+                            </div>
+                        </div>
+                        <div class="meeting-notes">
+                            <div class="notes-header">📝 Meeting Notes</div>
+                            <textarea class="notes-area" placeholder="Take notes during the meeting..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STUDY MODE -->
+                <div class="mode-view study-view" id="view-study">
+                    <div class="study-notes">
+                        <div class="section-title">Study Notes</div>
+                        <textarea class="study-textarea" placeholder="Write your study notes here..."></textarea>
+                    </div>
+                    <div class="study-checklist">
+                        <div class="section-title">Checklist</div>
+                        <div class="checklist-item" onclick="toggleCheck(this)">
+                            <div class="check-box"></div>
+                            <span>Review lecture slides</span>
+                        </div>
+                        <div class="checklist-item" onclick="toggleCheck(this)">
+                            <div class="check-box"></div>
+                            <span>Complete problem set 3</span>
+                        </div>
+                        <div class="checklist-item" onclick="toggleCheck(this)">
+                            <div class="check-box"></div>
+                            <span>Read chapter 7</span>
+                        </div>
+                        <div class="checklist-item" onclick="toggleCheck(this)">
+                            <div class="check-box"></div>
+                            <span>Prepare flashcards</span>
+                        </div>
+                        <div class="checklist-item" onclick="toggleCheck(this)">
+                            <div class="check-box"></div>
+                            <span>Practice quiz</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0% completed</div>
+                    </div>
+                </div>
+
+                <!-- BREAK MODE -->
+                <div class="mode-view break-view" id="view-break">
+                    <div class="break-emoji">🌿</div>
+                    <div class="break-message">Take a breath</div>
+                    <div class="break-sub">You've earned this moment of peace</div>
+                    <div class="spotify-widget">
+                        <div class="spotify-cover">🎵</div>
+                        <div class="spotify-info">
+                            <div class="spotify-track">Lo-Fi Beats</div>
+                            <div class="spotify-artist">Chillhop Music</div>
+                        </div>
+                        <div class="spotify-controls">
+                            <span>⏮</span>
+                            <span>▶</span>
+                            <span>⏭</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CTA Overlay -->
+    <div class="cta-overlay" id="ctaOverlay">
+        <span class="cta-text">This is what your workflow should feel like.</span>
+        <button class="cta-button" onclick="alert('Thanks for your interest! FlowKeys coming soon.')">Get FlowKeys</button>
+    </div>
+
+    <script>
+        // ===== STATE MANAGEMENT =====
+        const state = {
+            currentMode: 'idle',
+            theme: 'dark',
+            focusTime: 25 * 60,
+            focusInterval: null,
+            wordCount: 0,
+            charCount: 0
+        };
+
+        const modes = {
+            focus: { name: 'Focus Mode', color: '#3b82f6', text: 'Focus Mode Active', loading: 'Preparing deep work environment...' },
+            writing: { name: 'Writing Mode', color: '#10b981', text: 'Writing Mode Active', loading: 'Setting up distraction-free editor...' },
+            meeting: { name: 'Meeting Mode', color: '#8b5cf6', text: 'Meeting Mode Active', loading: 'Joining meeting room...' },
+            study: { name: 'Study Mode', color: '#f59e0b', text: 'Study Mode Active', loading: 'Loading study materials...' },
+            break: { name: 'Break Mode', color: '#ec4899', text: 'Break Mode Active', loading: 'Preparing relaxation space...' },
+            idle: { name: 'FlowKeys Ready', color: '#5a5a6a', text: 'FlowKeys Ready', loading: 'Resetting workspace...' }
+        };
+
+        // ===== DOM ELEMENTS =====
+        const modeDot = document.getElementById('modeDot');
+        const modeText = document.getElementById('modeText');
+        const tooltip = document.getElementById('tooltip');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const workspace = document.getElementById('workspace');
+        const themeToggle = document.getElementById('themeToggle');
+        const ctaOverlay = document.getElementById('ctaOverlay');
+        const focusTimer = document.getElementById('focusTimer');
+        const writingArea = document.getElementById('writingArea');
+        const wordCountEl = document.getElementById('wordCount');
+        const charCountEl = document.getElementById('charCount');
+
+        // ===== INITIALIZATION =====
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show tooltip briefly
+            setTimeout(() => tooltip.classList.add('show'), 500);
+            setTimeout(() => tooltip.classList.remove('show'), 4000);
+
+            // Show CTA after first interaction
+            let ctaShown = false;
+
+            // Bind keys
+            document.querySelectorAll('.flow-key').forEach(key => {
+                key.addEventListener('click', () => {
+                    const mode = key.dataset.mode;
+                    switchMode(mode);
+                    if (!ctaShown && mode !== 'idle') {
+                        setTimeout(() => ctaOverlay.classList.add('show'), 2000);
+                        ctaShown = true;
+                    }
+                });
+            });
+
+            // Theme toggle
+            themeToggle.addEventListener('click', toggleTheme);
+
+            // Writing stats
+            writingArea.addEventListener('input', updateWritingStats);
+        });
+
+        // ===== MODE SWITCHING =====
+        function switchMode(mode) {
+            if (state.currentMode === mode) return;
+
+            const modeConfig = modes[mode];
+            const prevMode = state.currentMode;
+
+            // Update active key
+            document.querySelectorAll('.flow-key').forEach(k => k.classList.remove('active'));
+            document.querySelector(`[data-mode="${mode}"]`)?.classList.add('active');
+
+            // Show loading
+            loadingText.textContent = modeConfig.loading;
+            loadingOverlay.classList.add('show');
+
+            // Simulate micro-delay
+            setTimeout(() => {
+                loadingOverlay.classList.remove('show');
+
+                // Hide previous view
+                document.querySelectorAll('.mode-view').forEach(v => v.classList.remove('active'));
+
+                // Show new view
+                const newView = document.getElementById(`view-${mode}`);
+                if (newView) newView.classList.add('active');
+
+                // Update top bar
+                modeText.textContent = modeConfig.text;
+                modeDot.style.background = modeConfig.color;
+                modeDot.classList.add('active');
+                setTimeout(() => modeDot.classList.remove('active'), 600);
+
+                // Update background orbs
+                updateOrbs(mode);
+
+                // Mode-specific logic
+                if (mode === 'focus') startFocusTimer();
+                else stopFocusTimer();
+
+                if (mode === 'writing') {
+                    writingArea.focus();
+                    updateWritingStats();
+                }
+
+                state.currentMode = mode;
+            }, 300 + Math.random() * 200);
+        }
+
+        // ===== FOCUS TIMER =====
+        function startFocusTimer() {
+            stopFocusTimer();
+            state.focusTime = 25 * 60;
+            updateTimerDisplay();
+            state.focusInterval = setInterval(() => {
+                if (state.focusTime > 0) {
+                    state.focusTime--;
+                    updateTimerDisplay();
+                } else {
+                    stopFocusTimer();
+                    focusTimer.textContent = 'Done!';
+                }
+            }, 1000);
+        }
+
+        function stopFocusTimer() {
+            if (state.focusInterval) {
+                clearInterval(state.focusInterval);
+                state.focusInterval = null;
+            }
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(state.focusTime / 60).toString().padStart(2, '0');
+            const secs = (state.focusTime % 60).toString().padStart(2, '0');
+            focusTimer.textContent = `${mins}:${secs}`;
+        }
+
+        // ===== WRITING STATS =====
+        function updateWritingStats() {
+            const text = writingArea.value;
+            state.charCount = text.length;
+            state.wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+            wordCountEl.textContent = `${state.wordCount} words`;
+            charCountEl.textContent = `${state.charCount} chars`;
+        }
+
+        // ===== CHECKLIST =====
+        function toggleCheck(item) {
+            item.classList.toggle('checked');
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const items = document.querySelectorAll('.checklist-item');
+            const checked = document.querySelectorAll('.checklist-item.checked');
+            const percent = Math.round((checked.length / items.length) * 100);
+            document.getElementById('progressFill').style.width = `${percent}%`;
+            document.getElementById('progressText').textContent = `${percent}% completed`;
+        }
+
+        // ===== THEME =====
+        function toggleTheme() {
+            state.theme = state.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', state.theme);
+            themeToggle.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+        }
+
+        // ===== ORBS =====
+        function updateOrbs(mode) {
+            const orb1 = document.getElementById('orb1');
+            const orb2 = document.getElementById('orb2');
+            const orb3 = document.getElementById('orb3');
+
+            const colors = {
+                focus: ['#3b82f6', '#1d4ed8', '#60a5fa'],
+                writing: ['#10b981', '#059669', '#34d399'],
+                meeting: ['#8b5cf6', '#7c3aed', '#a78bfa'],
+                study: ['#f59e0b', '#d97706', '#fbbf24'],
+                break: ['#ec4899', '#db2777', '#f472b6'],
+                idle: ['#3b82f6', '#8b5cf6', '#10b981']
+            };
+
+            const c = colors[mode] || colors.idle;
+            orb1.style.background = `radial-gradient(circle, ${c[0]}, transparent 70%)`;
+            orb2.style.background = `radial-gradient(circle, ${c[1]}, transparent 70%)`;
+            orb3.style.background = `radial-gradient(circle, ${c[2]}, transparent 70%)`;
+        }
+    </script>
+</body>
+</html>
